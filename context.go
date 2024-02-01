@@ -49,38 +49,55 @@ const abortIndex int8 = math.MaxInt8 >> 1
 // Context is the most important part of gin. It allows us to pass variables between middleware,
 // manage the flow, validate the JSON of a request and render a JSON response for example.
 type Context struct {
+	// responseWriter 类型的实例，用于存储关于 HTTP 响应的信息。这是一个内部字段，用于缓存和优化响应写入操作。
 	writermem responseWriter
-	Request   *http.Request
-	Writer    ResponseWriter
+	// http.Request 类型，表示当前处理的 HTTP 请求。它包含了请求的所有信息，如 URL、头部字段、查询参数等。
+	Request *http.Request
+	// ResponseWriter 接口，用于构建 HTTP 响应。它提供了写入响应体、设置响应头、定义 HTTP 状态码等方法。
+	Writer ResponseWriter
 
-	Params   Params
+	// Params 类型，存储了 URL 路径中的参数。
+	Params Params
+	// HandlersChain 类型，这是一个中间件/处理函数的链表。在 Gin 中，一个请求可能会经过多个中间件和一个终结处理函数。
 	handlers HandlersChain
-	index    int8
+	// int8 类型，用于记录当前执行到 handlers 链中的哪个处理函数。
+	index int8
+	// fullPath 字符串，存储匹配到的完整路由路径。
 	fullPath string
 
-	engine       *Engine
-	params       *Params
+	// Engine 类型，指向当前的 Gin 引擎实例，可以用来访问全局的配置和方法。
+	engine *Engine
+	// Params 类型的指针，可能用于更高效的参数存取。
+	params *Params
+
+	// skippedNode 类型的指针，用于路由优化，记录在路由匹配过程中跳过的节点。
 	skippedNodes *[]skippedNode
 
-	// This mutex protects Keys map.
+	// This mutex protects Keys map. 用于保护 Keys 字段，确保在并发访问时的安全性。
 	mu sync.RWMutex
 
+	// 用于在一个请求的上下文中存储和传递数据。它是一个键/值对的集合，可以在处理链的不同部分之间共享数据。
 	// Keys is a key/value pair exclusively for the context of each request.
 	Keys map[string]any
 
+	// 存储处理过程中产生的错误。这允许在处理链的后续部分或中间件中统一处理错误。
 	// Errors is a list of errors attached to all the handlers/middlewares who used this context.
 	Errors errorMsgs
 
+	// 包含了手动设置的可接受的响应格式列表，用于内容协商。
 	// Accepted defines a list of manually accepted formats for content negotiation.
 	Accepted []string
 
+	// 用于缓存从 c.Request.URL.Query() 解析出的查询参数，以优化性能。
 	// queryCache caches the query result from c.Request.URL.Query().
 	queryCache url.Values
 
+	// 缓存从 POST、PATCH 或 PUT 请求体中解析出的表单数据。
 	// formCache caches c.Request.PostForm, which contains the parsed form data from POST, PATCH,
 	// or PUT body parameters.
 	formCache url.Values
 
+	// 定义了一个服务器可以设置的 Cookie 属性，以防止浏览器在跨站请求时发送这些 Cookie。
 	// SameSite allows a server to define a cookie attribute making it impossible for
 	// the browser to send this cookie along with cross-site requests.
 	sameSite http.SameSite
@@ -1052,6 +1069,9 @@ func (c *Context) FileFromFS(filepath string, fs http.FileSystem) {
 	http.FileServer(fs).ServeHTTP(c.Writer, c.Request)
 }
 
+// 处理 JSON 字符串：当你动态生成 JSON 字符串时，需要转义某些特殊字符。
+// 生成代码：在编写代码生成工具时，需要对字符串中的特殊字符进行转义以确保生成的代码是有效的。
+// 文本处理：在任何需要替换字符串中多个子串的场景中，使用 strings.NewReplacer 可以提高效率和可读性。
 var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
 
 func escapeQuotes(s string) string {

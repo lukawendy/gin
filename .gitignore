@@ -5,3 +5,9 @@ count.out
 test
 profile.out
 tmp.out
+
+# idea ignore
+.idea/
+*.ipr
+*.iml
+*.iws

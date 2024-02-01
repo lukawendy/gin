@@ -58,16 +58,25 @@ func (c HandlersChain) Last() HandlerFunc {
 	return nil
 }
 
+// RouteInfo 结构体在 Gin 框架中代表了一个路由规则的详细信息。每个 RouteInfo 实例包含了关于特定路由的关键信息，这使得框架用户能够理解和操作路由规则。
 // RouteInfo represents a request route's specification which contains method and path and its handler.
 type RouteInfo struct {
 	Method      string
-	Path        string
-	Handler     string
-	HandlerFunc HandlerFunc
+	Path        string      // 字符串类型，表示路由的路径。这通常是一个 URL 路径模式，如 /users/:id，其中 :id 是一个动态参数。
+	Handler     string      // 通常是处理该路由请求的函数或方法的名称。这提供了一个对应处理函数的简短描述，有助于调试和文档目的。
+	HandlerFunc HandlerFunc // 这是一个指向实际处理该路由请求的函数的引用。HandlerFunc 是 Gin 中定义的一个类型，用于所有的请求处理函数。
 }
 
 // RoutesInfo defines a RouteInfo slice.
 type RoutesInfo []RouteInfo
+
+// "X-Appengine-Remote-Addr":在托管环境或反向代理后面的应用中，直接从标准的 RemoteAddr 或 X-Forwarded-For 头部获取原始客户端 IP 可能是不准确的，
+// 因为这些字段可能包含了代理或负载均衡器的 IP 地址。Google App Engine（GAE）是一个平台即服务（PaaS）产品，它让开发者能够在 Google 的基础设施上构建和托管网页应用程序和后端服务。
+
+// "CF-Connecting-IP": 当你的网站或应用通过 Cloudflare 进行代理时，用户的请求首先到达 Cloudflare 的服务器，然后才被转发到你的原始服务器。
+// 在这个过程中，由于 Cloudflare 作为中间代理，直接从 HTTP 请求的标准 RemoteAddr 或 X-Forwarded-For 头部中获取用户的真实 IP 地址可能是不准确的，
+// 因为这些字段会显示 Cloudflare 的 IP 地址。 为了解决这个问题，Cloudflare 在转发请求给原始服务器时，会在 HTTP 头部中添加 CF-Connecting-IP 字段。
+// 这个字段包含了最终用户的真实 IP 地址，即用户直接连接到 Cloudflare 时所使用的 IP 地址。
 
 // Trusted platforms
 const (
@@ -82,8 +91,10 @@ const (
 // Engine is the framework's instance, it contains the muxer, middleware and configuration settings.
 // Create an instance of Engine, by using New() or Default()
 type Engine struct {
+	// 这是嵌入的 RouterGroup，提供了路由的分组功能。它允许在不同的路由组中应用不同的中间件或路径前缀。
 	RouterGroup
 
+	// 当设置为 true 时，如果当前路由没有匹配到但是存在一个相似的路由（只是尾部斜杠不同），会自动重定向到正确的路由。
 	// RedirectTrailingSlash enables automatic redirection if the current route can't be matched but a
 	// handler for the path with (without) the trailing slash exists.
 	// For example if /foo/ is requested but a route only exists for /foo, the
@@ -91,6 +102,7 @@ type Engine struct {
 	// and 307 for all other request methods.
 	RedirectTrailingSlash bool
 
+	// 当启用时，路由器会尝试修正当前请求的路径（例如移除多余的斜杠或进行大小写不敏感的匹配），如果找到匹配的路由，则进行重定向。
 	// RedirectFixedPath if enabled, the router tries to fix the current request path, if no
 	// handle is registered for it.
 	// First superfluous path elements like ../ or // are removed.
@@ -102,6 +114,7 @@ type Engine struct {
 	// RedirectTrailingSlash is independent of this option.
 	RedirectFixedPath bool
 
+	// 启用后，如果当前路由的方法不被允许，路由器会检查是否有其他方法被允许，如果是，则返回 405 Method Not Allowed。
 	// HandleMethodNotAllowed if enabled, the router checks if another method is allowed for the
 	// current route, if the current request can not be routed.
 	// If this is the case, the request is answered with 'Method Not Allowed'
@@ -110,6 +123,7 @@ type Engine struct {
 	// handler.
 	HandleMethodNotAllowed bool
 
+	// 启用时，会从请求的头部中解析客户端 IP。
 	// ForwardedByClientIP if enabled, client IP will be parsed from the request's headers that
 	// match those stored at `(*gin.Engine).RemoteIPHeaders`. If no IP was
 	// fetched, it falls back to the IP obtained from
@@ -122,52 +136,71 @@ type Engine struct {
 	// 'X-AppEngine...' for better integration with that PaaS.
 	AppEngine bool
 
+	// 启用时，会使用 url.RawPath 来查找 URL 参数。
 	// UseRawPath if enabled, the url.RawPath will be used to find parameters.
 	UseRawPath bool
 
+	// 如果为 true，则会对路径值进行解码。
 	// UnescapePathValues if true, the path value will be unescaped.
 	// If UseRawPath is false (by default), the UnescapePathValues effectively is true,
 	// as url.Path gonna be used, which is already unescaped.
 	UnescapePathValues bool
 
+	// 启用时，允许在 URL 中即使有额外的斜杠也能解析参数。
 	// RemoveExtraSlash a parameter can be parsed from the URL even with extra slashes.
 	// See the PR #1817 and issue #1644
 	RemoveExtraSlash bool
 
+	// 字符串数组，列出用于获取客户端 IP 的头部字段，当 ForwardedByClientIP 为 true 时使用。
 	// RemoteIPHeaders list of headers used to obtain the client IP when
 	// `(*gin.Engine).ForwardedByClientIP` is `true` and
 	// `(*gin.Context).Request.RemoteAddr` is matched by at least one of the
 	// network origins of list defined by `(*gin.Engine).SetTrustedProxies()`.
 	RemoteIPHeaders []string
 
+	// 用于指定信任的平台，以便于处理特定平台设置的头部，如客户端 IP。
 	// TrustedPlatform if set to a constant of value gin.Platform*, trusts the headers set by
 	// that platform, for example to determine the client IP
 	TrustedPlatform string
 
+	// 解析多部分表单时的最大内存使用量。
 	// MaxMultipartMemory value of 'maxMemory' param that is given to http.Request's ParseMultipartForm
 	// method call.
 	MaxMultipartMemory int64
 
+	// 启用时支持 h2c（非加密的 HTTP/2）
 	// UseH2C enable h2c support.
 	UseH2C bool
 
+	// 启用时会在 Context.Request.Context() 不为 nil 时提供 Context 的备用方法。
 	// ContextWithFallback enable fallback Context.Deadline(), Context.Done(), Context.Err() and Context.Value() when Context.Request.Context() is not nil.
 	ContextWithFallback bool
 
-	delims           render.Delims
+	// 定义模板渲染时使用的分隔符。
+	delims render.Delims
+	// 字符串，用于 JSON 劫持保护，添加在所有 JSON 响应前面。
 	secureJSONPrefix string
-	HTMLRender       render.HTMLRender
-	FuncMap          template.FuncMap
-	allNoRoute       HandlersChain
-	allNoMethod      HandlersChain
-	noRoute          HandlersChain
-	noMethod         HandlersChain
-	pool             sync.Pool
-	trees            methodTrees
-	maxParams        uint16
-	maxSections      uint16
-	trustedProxies   []string
-	trustedCIDRs     []*net.IPNet
+	// 用于渲染 HTML 的接口。
+	HTMLRender render.HTMLRender
+	//用于 HTML 模板中的自定义函数。
+	FuncMap template.FuncMap
+
+	// 这些字段定义了不同情况下（如无路由、无方法）的处理函数链。
+	allNoRoute  HandlersChain
+	allNoMethod HandlersChain
+	noRoute     HandlersChain
+	noMethod    HandlersChain
+
+	// 用于重用 Context 对象以减少内存分配。
+	pool sync.Pool
+	// 存储不同 HTTP 方法的路由树。
+	trees methodTrees
+	// 分别记录最大 URL 参数数量和最大 URL 段数量，用于优化。
+	maxParams   uint16
+	maxSections uint16
+	// 分别存储信任的代理服务器和代理服务器的 CIDR，用于安全处理来自代理的请求。
+	trustedProxies []string
+	trustedCIDRs   []*net.IPNet
 }
 
 var _ IRouter = (*Engine)(nil)
