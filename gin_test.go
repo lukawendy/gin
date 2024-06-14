@@ -100,6 +100,8 @@ func TestH2c(t *testing.T) {
 
 	url := "http://" + ln.Addr().String() + "/"
 
+	// 这段代码配置了一个 HTTP/2 传输层，允许通过普通的 TCP 连接（DialTLS 函数实际上使用的是 net.Dial，没有TLS握手），这是 h2c 的标准配置方法。
+	// 如果没有启用 UseH2C，Gin 服务器默认不会处理 h2c 请求，它只会处理普通的 HTTP/1.1 或通过 TLS 加密的 HTTP/2 请求。
 	httpClient := http.Client{
 		Transport: &http2.Transport{
 			AllowHTTP: true,
