@@ -600,13 +600,20 @@ func (engine *Engine) RunListener(listener net.Listener) (err error) {
 
 // ServeHTTP conforms to the http.Handler interface.
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// 从 engine 的对象池中获取一个 Context 对象。对象池在这里的作用是减少每次请求处理时的内存分配，提高性能。
+	// 通过复用 Context 对象，避免了频繁的内存分配和回收。
 	c := engine.pool.Get().(*Context)
-	c.writermem.reset(w)
+
+	// 重置和设置 Context
+	c.writermem.reset(w) // 将 HTTP 响应写入器 w （ResponseWriter）关联到 Context 的 writermem 属性上。writermem 是一个封装了 ResponseWriter，提供缓冲写入功能的结构。
 	c.Request = req
 	c.reset()
 
+	// 负责匹配路由、执行相应的处理函数和中间件
 	engine.handleHTTPRequest(c)
 
+	// 请求处理完毕后，Context 对象通过 engine.pool.Put(c) 返回到对象池中，
+	// 这样它可以在后续的请求中被再次利用。这个步骤帮助进一步减少垃圾收集的压力和提升应用性能。
 	engine.pool.Put(c)
 }
 
@@ -630,6 +637,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
 		unescape = engine.UnescapePathValues
 	}
 
+	//如果启用了 RemoveExtraSlash，则会清理路径中的额外斜杠。
 	if engine.RemoveExtraSlash {
 		rPath = cleanPath(rPath)
 	}
@@ -642,10 +650,11 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
 		}
 		root := t[i].root
 		// Find route in tree
-		value := root.getValue(rPath, c.params, c.skippedNodes, unescape)
+		value := root.getValue(rPath, c.params, c.skippedNodes, unescape) //根据请求路径查找对应的路由节点
 		if value.params != nil {
 			c.Params = *value.params
 		}
+		// 如果找到路由，则从路由节点获取处理函数（handlers），设置到上下文（Context）中，并执行这些处理函数。
 		if value.handlers != nil {
 			c.handlers = value.handlers
 			c.fullPath = value.fullPath
@@ -653,6 +662,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
 			c.writermem.WriteHeaderNow()
 			return
 		}
+		// 如果没有找到对应的处理函数，但是其他方法有匹配的路由，可能会设置 Allow 头，并返回 405 方法不允许。
 		if httpMethod != http.MethodConnect && rPath != "/" {
 			if value.tsr && engine.RedirectTrailingSlash {
 				redirectTrailingSlash(c)
@@ -677,6 +687,7 @@ func (engine *Engine) handleHTTPRequest(c *Context) {
 			}
 		}
 	}
+	//如果没有任何匹配的路由，将调用 allNoRoute 处理函数，返回 404 未找到。
 	c.handlers = engine.allNoRoute
 	serveError(c, http.StatusNotFound, default404Body)
 }
